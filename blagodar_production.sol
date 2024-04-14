@@ -15,16 +15,15 @@ pragma solidity 0.8.6;
   88888888     8888888888  .88      88.     8888         8888      8888888     .88      88.   88      88         
 
 */
-import "hardhat/console.sol";
+
 contract BLAGODAR {
 
-    uint256 test_var = 0;
     string public constant standard = 'BLAGODAR ZRC20';                 // Название стандарта контракта
-    string public constant name = 'BLAGODAR';                         // Название токена
+    string public constant name = 'BLAGODAR';                          // Название токена
     string public constant symbol = 'DAR';                            // Символ токена
     uint256 public constant decimals = 8;                               
     uint256 public constant ZHC = 10 ** decimals;                       // Одно ЗХ
-    uint256 constant DAY = 24 * 60 * 60;                                // Время дня в секундах для генерации платежки
+    uint256 public constant DAY = 24 * 60 * 60;              // Время дня в секундах для генерации платежки
     uint256 public constant week = 7;                                   // Неделя уровня
     
     uint256 public constant totalSupply = 10 * (10 ** 9) * ZHC;
@@ -36,15 +35,17 @@ contract BLAGODAR {
     address [] public all_users;
     address public usdt_contract = 0xA48d0eE7365cE1adD8e595De4d54344239F8CA28;
     address [] public all_admins;
+    mapping (address => bool) public is_admin;
     bool public prestart = true;
-    uint256 current_day = 10;
+    uint256 public current_day = 10;
 
-    uint256 public max_array_len = 100; 
+    uint256 public max_array_len = 500; 
     uint256 public constant section_payment_len = 10;
     uint256 public day_start = current_day;     
 
     uint256 public time_start = block.timestamp -  block.timestamp % DAY;   // Время от начала дня старта
     uint256 public time_new_day = time_start;
+
 
     address [] public users_with_node;
 
@@ -53,32 +54,33 @@ contract BLAGODAR {
     
     mapping (address => uint256) public balanceOf;
     mapping (address => mapping (address => uint256)) public allowance;
+
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
     event Approval(address indexed _owner, address indexed _spender, uint256 _value);
     event Received(address, uint256);
-
 
     uint256 constant forge_node_procent = 20;
     uint256 constant level_numbers = 12;
 
     uint256 [level_numbers] public coefs = [2,3,6,7,8,9,10,11,12,13,14,15] ; // level 0-11 проценты
-    uint256 quant_limit = 100;
+    uint256 quant_limit = 100 * ZHC;
     uint256 [level_numbers] public withdraw_limits = [quant_limit, quant_limit, quant_limit,quant_limit, 2 * quant_limit, 3 * quant_limit, 4 * quant_limit, 5 * quant_limit, 7 * quant_limit, 11 * quant_limit, 11 * quant_limit ];
-    
-    address [] public developers; 
-    uint256 paymets_for_developers;
+     
+    uint256 public full_amount;
 
     uint256 public application_number = 0;
-    uint256 public velocity_a = 5; 
-    uint256 public velocity_b = 10; 
+    uint256 public lower_bound_random_day = 5; 
+    uint256 public upper_bound_random_day = 10; 
     uint256 public last_pool_i = 0;
 
     mapping (address => User) public user;
     mapping(uint256 => Payment) public payment_application;
     mapping (uint256 => uint256) public pre_pool;
+    mapping (address => uint256) public the_amount_of_accepted_gifts;
 
-    address public constant first_user = 0x2051fb57B0E7dFce110189df1D9F455af30e81B4;  //ZEz9c2EsheXnkZCMqcwjA2m2ZwKYs641Lq 
-    address public constant multiplicator = 0x632d3353F5aB6Ce87f49c35100bAc92828F244Aa; //ZM5epGK5bJnRvK2VBfupVB4PHETzR2GLH8  
+    address public constant first_user = 0x2051fb57B0E7dFce110189df1D9F455af30e81B4;    // ZEz9c2EsheXnkZCMqcwjA2m2ZwKYs641Lq 
+    address public constant multiplicator = 0xD21DFDf264b6f1588C2F129F86FD27331Ba41928; // ZXCFbrLgKxN3i48VBmQ8kEQsqKjWR3JhCC
+    address public constant admin = 0x632d3353F5aB6Ce87f49c35100bAc92828F244Aa;         // ZM5epGK5bJnRvK2VBfupVB4PHETzR2GLH8  
 
     struct User{ 
            
@@ -94,8 +96,8 @@ contract BLAGODAR {
         uint256 last_update_timestamp;  // Последнее время совершения или получения благодарности
         uint256 all_payments_len;       // Количество всех платёжек
         uint256 all_withdraw_payments_len; // Все оплаченные платёжки
-        uint256 referrals_len;          // число рефералов
-
+        uint256 referrals_len;          // Число рефералов
+        uint256 registration_day;
         address [] add_wallets;         // Дополнительные кошельки
         uint256 [level_numbers] referral_level_number; // Число рефералов по уровням
 
@@ -104,11 +106,11 @@ contract BLAGODAR {
         mapping (uint256 => uint256) all_withdraw_payments;                 // Все оплаченные платёжки
         mapping (uint256 => uint256 [] ) tranz_withdraw_in_day;             // Все оплаченные платёжки по дням
         mapping (uint256 => address []) referrals_invited_by_day;           // Рефералы приглашенные по дням
-        mapping (uint256 => bool [3])  recalculation_of_level_and_active_day; // Обновление уровня, активности и отзыв
+        mapping (uint256 => bool [3])  recalculation_of_level_and_active_day; // Обновление уровня, активности и отзыв  0 [0, была ли учтена активность реферера, 0]
         mapping (address => uint256) add_wallet_level;                      // Уровень доп кошеля
         mapping (address => mapping(uint256 => uint256 []) ) tranz_in_day;  // Все транзы доп кошелей по дням
         mapping (address => uint256) change_level_day;                      // День изменения уровня
-        mapping (address => uint256) hyper_jump_level;                      // Уровень гиперпрыжка для доп кошелей
+        mapping (address => uint256 [2]) hyper_jump_level;                      // Уровень гиперпрыжка для доп кошелей, день изменения
         
     }
 
@@ -124,33 +126,27 @@ contract BLAGODAR {
         uint256 balance;                // Баланс на момент создания транзакции
     }
 
-    address [] user_spisok = [
-    0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,  //first_user
-    0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,
-    0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB,
-    0x617F2E2fD72FD9D5503197092aC168c91465E7f2,
-    0x17F6AD8Ef982297579C203069C1DbfFE4348c372,
-    0x5c6B0f7Bf3E7ce046039Bd8FABdfD3f9F5021678,
-    0x03C6FcED478cBbC9a4FAB34eF9f40767739D1Ff7,
-    0x1aE0EA34a72D944a8C7603FfB3eC30a6669E454C,
-    0x0A098Eda01Ce92ff4A4CCb7A4fFFb5A43EBC70DC,
-    0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c,
-    0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C,
-    0x701C484bfb40ac628aFA487b6082f084B14AF0BD];
 
     constructor () { 
-        user[multiplicator].is_registered = false;
+        user[multiplicator].is_registered = false; 
         user[first_user].is_registered = true;
+        user[first_user].registration_day = current_day;
         user[first_user].level = 10;
         user[first_user].referer = first_user;
         all_users.push(first_user);
+
         all_admins.push(msg.sender);
-        all_admins.push(multiplicator);  
+        all_admins.push(admin);  
         all_admins.push(first_user); 
+
+        is_admin[msg.sender] = true;
+        is_admin[admin] = true;
+        is_admin[first_user] = true;
+
         owner = msg.sender;
 
-        balanceOf[msg.sender] = totalSupply - 3 * first_user_ballance;
-        emit Transfer(address(0), msg.sender, totalSupply - 3 * first_user_ballance);
+        balanceOf[msg.sender] = totalSupply - 12 * first_user_ballance;
+        emit Transfer(address(0), msg.sender, totalSupply - 12 * first_user_ballance);
 
         balanceOf[first_user] = first_user_ballance; 
         emit Transfer(address(0), first_user, first_user_ballance);
@@ -158,8 +154,8 @@ contract BLAGODAR {
         balanceOf[multiplicator] = first_user_ballance; 
         emit Transfer(address(0), multiplicator, first_user_ballance);
 
-        balanceOf[address(this)] = first_user_ballance; 
-        emit Transfer(address(0), address(this),  first_user_ballance); 
+        balanceOf[address(this)] = 10 * first_user_ballance; 
+        emit Transfer(address(0), address(this),  10 * first_user_ballance); 
 
     }
 
@@ -168,65 +164,34 @@ contract BLAGODAR {
         _;
     }
     modifier onlyAdmin(address _address) {
-        require(is_admin(msg.sender),"You are not an admin"); 
+        require(is_admin[msg.sender],"You are not an admin"); 
         _;
     }
 
-    function test_reg() public{
-        require(is_admin(msg.sender));
-        uint256 i = 1;
-        admin_registrate(first_user, user_spisok[user_spisok.length - 1]);
-        _transfer(first_user,user_spisok[user_spisok.length - 1], 100000 * ZHC );
-        console.log("main user", user_spisok[user_spisok.length - 1]);
-        for (i;i<user_spisok.length - 1;i++){
-            admin_registrate(user_spisok[user_spisok.length - 1],user_spisok[i]); // i -1
-            _transfer(first_user,user_spisok[i], 100000 * ZHC );
-        }
 
-        for (i = 0; i < 5; i++){
-            user[user_spisok[user_spisok.length - 1]].tranz_in_day[user_spisok[2]][get_the_current_day() - 1].push(i);
-        }
-    }
 
-    function test_balance() public {
-        require(is_admin(msg.sender));
-        uint256 i = 0;
-        console.log("main user", user_spisok[user_spisok.length - 1]);
-        for (i;i<user_spisok.length;i++){
-            console.log(user_spisok[i], user[user_spisok[i]].level, balanceOf[user_spisok[i]] / ZHC); //add_wallet_level[user_spisok[i]]
-            test_var = 1; 
-        }
-    }
+        /*for (i = 0; i < 5; i++){
+            user[user_spisok[i]].tranz_in_day[user_spisok[i]][current_day - 1].push(i);
+        }*/
+    
 
+
+    
 
     function get_the_current_day() public view returns (uint256){
         return  current_day; 
     }
 
     function check_new_day() public{
+
         if (block.timestamp - time_new_day >= DAY){
-            console.log("check new day");
             current_day = 10 + (block.timestamp - time_start) / (DAY);
             last_pool_i = 0;
             time_new_day = block.timestamp - block.timestamp % DAY;
         }
     }
 
-    function add_developer(address _developer) onlyAdmin(msg.sender) public{
-        developers.push(_developer);
-    }
-
-    function del_developer(uint256 _number) onlyAdmin(msg.sender) public{
-        developers[_number] = developers[developers.length - 1];
-        developers.pop();
-    }
-
-    function pay_developers() public {
-        for (uint256 i = 0; i < developers.length; i++)  {
-            _transfer(first_user, developers[i], paymets_for_developers / developers.length);
-        }
-        paymets_for_developers = 0;
-    }
+   
     
     function admin_node_registrate(address node, address user_address) onlyAdmin(msg.sender) public{
         require(forging_node[node][0] == true ,"You don't send ZHC to contract");
@@ -251,11 +216,13 @@ contract BLAGODAR {
     }
 
     //Убрать из продакшена
-    function next_day() public{
+    /*function next_day() public{
         current_day += 1; //1 + (block.timestamp - time_start) / (DAY); //(24 * 3600); заменить
+        last_pool_i = 0;
     } 
+    */
 
-    function get_user_referrals(address user_address, uint256 start_number,uint256 finish_number) public view returns(address [] memory ){ //address user_address,
+    function get_user_referrals(address user_address, uint256 start_number, uint256 finish_number) public view returns(address [] memory ){ //address user_address,
         require(start_number <= finish_number);
         finish_number = min(user[user_address].referrals_len, start_number + max_array_len); 
         address [] memory user_referrals = new address [](finish_number - start_number);
@@ -265,14 +232,14 @@ contract BLAGODAR {
         return user_referrals;
     } 
 
-    function get_user_payments(address user_address, uint256 start_number,uint256 finish_number) public view returns(uint256 [] memory ){
+    function get_user_payments(address user_address, uint256 start_number, uint256 finish_number) public view returns(uint256 [] memory ){
         require(start_number <= finish_number);
         finish_number = min(user[user_address].all_payments_len, start_number + max_array_len);
         uint256 [] memory user_payments = new uint256 [](finish_number - start_number);
         for(uint256 i = start_number; i < finish_number; i++){
             user_payments[i - start_number] = user[user_address].all_payments[i];
         }
-        return user_payments;
+        return user_payments;   
     }
 
      function get_user_all_withdraw_payments(address user_address, uint256 start_number, uint256 finish_number) public view returns(uint256 [] memory ){
@@ -315,7 +282,7 @@ contract BLAGODAR {
         return user[user_address].change_level_day[add_wallet]; 
     }
 
-    function get_user_add_wallet_hyper_jump_level(address user_address, address add_wallet) public view returns(uint256 ){
+    function get_user_add_wallet_hyper_jump_level(address user_address, address add_wallet) public view returns(uint256 [2] memory ){
         return user[user_address].hyper_jump_level[add_wallet];  
     }
     
@@ -348,7 +315,7 @@ contract BLAGODAR {
                 max_level = user[user_address].add_wallet_level[user[user_address].add_wallets[i]];
             }
         }
-        //console.log(user_address,user[user_address].level, max_level);
+
         if (user[user_address].level != max_level){
             address user_referer = user[user_address].referer;
             if (user[user_referer].referral_level_number[old_user_level] > 0) user[user_referer].referral_level_number[old_user_level] -= 1;
@@ -358,12 +325,6 @@ contract BLAGODAR {
         
     }
 
-    // TEST 
-    function admin_set_add_wallet_level(address user_address, address add_wallet, uint256 level) onlyAdmin(msg.sender) public{
-        user[user_address].add_wallet_level[add_wallet] = level;
-        user[user_address].change_level_day[add_wallet] = current_day;
-        set_max_wallet_level(user_address);      
-    }
     
     function is_user_did_feedback_last_week(address user_address, uint256 test_current_day) public view returns(uint256) {
         uint256 day = test_current_day; 
@@ -377,12 +338,13 @@ contract BLAGODAR {
     function change_wallet_level (address user_address) public {
 
         if (!user[user_address].recalculation_of_level_and_active_day[current_day][0]) {
-            calculate_active_referrals(user_address, current_day);
+            // calculate_active_referrals(user_address, current_day);
             user[user_address].recalculation_of_level_and_active_day[current_day][0] = true; 
             for (uint256 i = 0; i < user[user_address].add_wallets.length; i++){
                 change_add_wallet_level(user_address, user[user_address].add_wallets[i]);
             }
             set_max_wallet_level(user_address);
+            add_active_to_referer(user_address);
         }
     }
 
@@ -390,34 +352,38 @@ contract BLAGODAR {
     function change_add_wallet_level(address user_address, address add_wallet) public{
         
         uint256 current_level = user[user_address].add_wallet_level[add_wallet];
-        
-            if (user[user_address].add_wallet_level[add_wallet] > 0 && user[user_address].tranz_in_day[add_wallet][current_day - 1].length < 5){
-                user[user_address].add_wallet_level[add_wallet] = 0;
-                user[user_address].change_level_day[add_wallet] = current_day;
-                return; 
-            }
 
+            if (user[user_address].tranz_in_day[add_wallet][current_day - 1].length < 5){
+                    user[user_address].add_wallet_level[add_wallet] = 0;
+                    user[user_address].change_level_day[add_wallet] = current_day;
+                    return; 
+                }
+
+            if (user[user_address].add_wallet_level[add_wallet] > 1 ){
+                    if (!check_conditions_next_level(user_address,  user[user_address].add_wallet_level[add_wallet] - 1)){
+                    user[user_address].add_wallet_level[add_wallet] = 1;
+                    user[user_address].change_level_day[add_wallet] = current_day;
+                    return; 
+                    }
+            }
                         
             if ( ((current_day - user[user_address].change_level_day[add_wallet]) >= week && is_user_did_feedback_last_week(user_address, current_day) > 0 || current_level == 0)  ) { // change to 7
-                
+                if (user[user_address].hyper_jump_level[add_wallet][0] != 0 && current_level >= 1){
+                    user[user_address].add_wallet_level[add_wallet] = user[user_address].hyper_jump_level[add_wallet][0];
+                    user[user_address].hyper_jump_level[add_wallet][0] = 0;
+                    user[user_address].hyper_jump_level[add_wallet][1] = 0;
+                    user[user_address].change_level_day[add_wallet] = current_day;
+                    return;
+                }
                 if (check_conditions_next_level(user_address, current_level)){
-                    user[user_address].add_wallet_level[add_wallet] +=1;
+                    user[user_address].add_wallet_level[add_wallet] += 1;
                     user[user_address].change_level_day[add_wallet] = current_day;
                     return ; 
                 }
                           
             }  
 
-            if (current_level < 1){
-                return;
-            }
-
-            if (!check_conditions_next_level(user_address,  current_level - 1)){
-                user[user_address].add_wallet_level[add_wallet] = 0;
-                user[user_address].change_level_day[add_wallet] = current_day;
-                return; 
-            }
-        
+            
         return; 
          
     }
@@ -491,63 +457,48 @@ contract BLAGODAR {
         if (level < 1) return;
         require(balanceOf[user_address] >= 10 * ZHC, "Your balance less 10 tokens");
         address add_wallet = user[user_address].wallet_for_work;
-        require(level <= 5,"level should be less 5"); 
+        require(level <= 5 && level > 1,"level should be less or equal 6 and more 0"); 
         require(user[user_address].tranz_in_day[add_wallet][current_day - 1].length >= 5 && user[user_address].tranz_in_day[add_wallet][current_day].length >= 5,"You didn't make 5 transactions yesterday and today" );
 
         if (_transfer(user_address, multiplicator, 10 * ZHC)){
-                user[user_address].hyper_jump_level[add_wallet] = level;  
+                user[user_address].hyper_jump_level[add_wallet][0] = level; 
+                user[user_address].hyper_jump_level[add_wallet][1] = current_day;  
         }
         
     }
-    
-    // TEST
-    function admin_set_wallet_level (address user_address, uint256 level) onlyAdmin(msg.sender) public{
-        user[user_address].level = level;
-    }
 
-    function test_change_quant_limit(uint256  new_quant_limit) onlyAdmin(msg.sender) public{ 
-        quant_limit = new_quant_limit;
-        withdraw_limits = [quant_limit, quant_limit, quant_limit,quant_limit, 2 * quant_limit, 3 * quant_limit, 4 * quant_limit, 5 * quant_limit, 7 * quant_limit, 11 * quant_limit, 11 * quant_limit ];
-    }
-
-    function calculate_active_referrals(address user_address, uint256 day) public returns(uint256) {
-        if ( !user[user_address].recalculation_of_level_and_active_day[day][1] ){
-            user[user_address].recalculation_of_level_and_active_day[day][1] = true;
-            uint256 day_minus_5 = day - 5;
-            uint256 active = 0;
-            uint256 i = 0;
-            for (day; day > day_minus_5; day--){
-                for (i;i<user[user_address].referrals_invited_by_day[day].length;i++){ 
-                    console.log(day, i, user[user[user_address].referrals_invited_by_day[day][i]].level);
-                    if (user[user[user_address].referrals_invited_by_day[day][i]].level >= 1)
-                        active += 1;
-                    if (active >= 5)
-                        break;
+    function add_active_to_referer(address user_address) internal {
+        if (user[user_address].recalculation_of_level_and_active_day[0][1]) return;
+            if( !user[user_address].recalculation_of_level_and_active_day[0][0]){
+                if (current_day - user[user_address].registration_day < 5 && user[user_address].level > 0){
+                    user[user[user_address].referer].active += 1;
+                    user[user_address].recalculation_of_level_and_active_day[0][0] = true;
                 }
             }
-            user[user_address].active = active;
-            return active;
-        }
-        else {
-            return user[user_address].active;
-        }
-        
+            else {
+                if (current_day - user[user_address].registration_day >= 5){
+                    user[user[user_address].referer].active -= 1;
+                    user[user_address].recalculation_of_level_and_active_day[0][1] = true;
+            }   
+    }
     }
 
     function admin_registrate(address referer_address, address user_address) onlyAdmin(msg.sender) public {
         require(user_address != multiplicator && user_address != first_user && user_address != address(0) && user_address != address(this) && referer_address != address(0));
-        require(forging_node[user_address][0] == false,"Node is already registered in smartcontract");
+        require(forging_node[user_address][0] == false, "Node is already registered in smartcontract");
+        require(user[user_address].is_registered == false);
         if ( !prestart){
-            require(user[referer_address].is_registered == true,"Prestart is ower");
+            require(user[referer_address].is_registered == true, "Prestart is ower");
         }
         user[user_address].is_registered = true;
+        user[user_address].registration_day = current_day;
         user[user_address].wallet_for_work = user_address;
         user[user_address].referer = referer_address;
         user[referer_address].referral_level_number[0] += 1; 
         user[referer_address].referrals[user[referer_address].referrals_len] = user_address;
         user[referer_address].referrals_len++;
-        if (user[referer_address].referrals_invited_by_day[get_the_current_day()].length < max_array_len){
-            user[referer_address].referrals_invited_by_day[get_the_current_day()].push(user_address);
+        if (user[referer_address].referrals_invited_by_day[current_day].length < max_array_len){
+            user[referer_address].referrals_invited_by_day[current_day].push(user_address);
         }
         all_users.push(user_address); 
         user[user_address].add_wallets.push(user_address);
@@ -572,21 +523,18 @@ contract BLAGODAR {
         }
     }
 
-    function admin_change_coefs(uint256 [level_numbers] memory new_coefs) public {
-        require(is_admin(msg.sender));
+    /*function admin_change_coefs(uint256 [level_numbers] memory new_coefs) onlyAdmin(msg.sender)  public {
         coefs = new_coefs;
-    }
+    }*/
 
-    function admin_registrate_add_wallet(address user_address, address add_wallet) public {
-        require(is_admin(msg.sender), "You are not an admin");
+    function admin_registrate_add_wallet(address user_address, address add_wallet) onlyAdmin(msg.sender) public {
         require(user[user_address].is_registered == true, "User is not registered");
         require(user[user_address].add_wallets.length <= 4,"You can't register more than 3 add wallets");  
-        require(is_address_in_add_wallets(user_address, add_wallet) == true, "You already registrate this add wallet");  
+        require(is_address_in_add_wallets(user_address, add_wallet) == false, "You already registrate this add wallet");  
         user[user_address].add_wallets.push(add_wallet);
         
     }
-    function admin_change_wallet_for_work(address user_address, address add_wallet) public {
-        require(is_admin(msg.sender), "You are not an admin");
+    function admin_change_wallet_for_work(address user_address, address add_wallet) onlyAdmin(msg.sender) public {
         require(user[user_address].is_registered == true, "User is not registered"); 
         require(is_address_in_add_wallets(user_address, add_wallet),"Wallet not in additional wallets");
         user[user_address].wallet_for_work = add_wallet;
@@ -615,8 +563,8 @@ contract BLAGODAR {
     }
 
     function admin_change_velocity(uint256 _a, uint256 _b ) onlyAdmin(msg.sender) public{
-        velocity_a = _a;
-        velocity_b = _b;
+        lower_bound_random_day = _a;
+        upper_bound_random_day = _b;
     }
 
     function check_and_pay() public {
@@ -628,7 +576,7 @@ contract BLAGODAR {
 
                 if (i > pre_pool_len) break;
 
-                if (payment_application[pre_pool[i]].reward_time <= get_the_current_day()) { 
+                if (payment_application[pre_pool[i]].reward_time <= current_day) { 
                     _burn_payment(i);
                     count_burned_payments += 1;
                 }
@@ -647,25 +595,26 @@ contract BLAGODAR {
         payment_application[application_number].fallacy = true;
         payment_application[application_number].user_wallet = user_address;
         payment_application[application_number].amount = _value;
+        payment_application[application_number].amount_for_withdraw = _value;
         payment_application[application_number].wallet_for_withdraw = user[user_address].wallet_for_work;
-        payment_application[application_number].payment_time = get_the_current_day(); 
+        payment_application[application_number].payment_time = current_day; 
         payment_application[application_number].reward_time = payment_application[application_number].payment_time + 1; 
         application_number += 1;
     }
         
     function user_withdraw_today_summ(address user_address) internal view returns (uint256) {
         uint256 summ = 0;
-        for (uint256 i=0; i < user[user_address].tranz_withdraw_in_day[get_the_current_day()].length;i++){
-            summ += user[user_address].tranz_withdraw_in_day[get_the_current_day()][i];
+        for (uint256 i=0; i < user[user_address].tranz_withdraw_in_day[current_day].length;i++){
+            summ += user[user_address].tranz_withdraw_in_day[current_day][i];
         }
         return summ;
     }
-     function user_permission_for_withdraw(address user_address) public view returns (bool)  {
+     function user_permission_for_withdraw(address user_address, uint256 value) public view returns (bool)  {
         if (user[user_address].isWithdraw == false){
             return true;
         }
         else {
-            if (user_withdraw_today_summ(user_address) < withdraw_limits[user[user_address].level]){
+            if (user_withdraw_today_summ(user_address) + value <= withdraw_limits[user[user_address].level]){
                 return true;
             } 
             else{
@@ -674,9 +623,9 @@ contract BLAGODAR {
         }
      }
 
-    function add_to_pool(address user_address, uint256 value) public {
+    function add_to_pool(address user_address, uint256 value, uint256 number_of_DAYs) internal {
         
-        uint256 number_of_DAYs = random(velocity_a, velocity_b);
+        
         
         
         address wallet_for_work = user[user_address].wallet_for_work;
@@ -684,7 +633,7 @@ contract BLAGODAR {
         if (user[user_address].is_forging){
             add_coef_forging_reward = 2;
         }
-        payment_application[application_number].amount_for_withdraw =  ((coefs[user[user_address].add_wallet_level[wallet_for_work]] + user[user_address].active )* (10 + add_coef_forging_reward) + 1000 ) * value / 1000; 
+        payment_application[application_number].amount_for_withdraw =  ((coefs[user[user_address].add_wallet_level[wallet_for_work]] + min(user[user_address].active, 5) )* (10 + add_coef_forging_reward) + 1000 ) * value / 1000; 
         payment_application[application_number].balance = balanceOf[user_address];
         payment_application[application_number].amount = value;
         
@@ -694,8 +643,8 @@ contract BLAGODAR {
         user[user_address].all_payments_len += 1;
         
         
-        if (user[user_address].tranz_in_day[wallet_for_work][get_the_current_day()].length < max_array_len) {
-            user[user_address].tranz_in_day[wallet_for_work][get_the_current_day()].push(application_number) ;
+        if (user[user_address].tranz_in_day[wallet_for_work][current_day].length < max_array_len) {
+            user[user_address].tranz_in_day[wallet_for_work][current_day].push(application_number) ;
         } 
 
         if (user[user_address].isWithdraw == false){    
@@ -703,13 +652,13 @@ contract BLAGODAR {
         }
         else{
             payment_application[application_number].wallet_for_withdraw = user[user_address].wallet_for_work;
-            if (user[user_address].tranz_withdraw_in_day[get_the_current_day()].length < max_array_len){
-                user[user_address].tranz_withdraw_in_day[get_the_current_day()].push(application_number);
+            if (user[user_address].tranz_withdraw_in_day[current_day].length < max_array_len){
+                user[user_address].tranz_withdraw_in_day[current_day].push(application_number);
             }
         }
         payment_application[application_number].user_wallet= user_address;
         
-        payment_application[application_number].payment_time= get_the_current_day();
+        payment_application[application_number].payment_time= current_day;
         payment_application[application_number].reward_time= payment_application[application_number].payment_time + number_of_DAYs;
         application_number += 1;
         
@@ -764,15 +713,15 @@ contract BLAGODAR {
     function gift_transfer(address _from, address _to, uint256 _value) public onlyAdmin(msg.sender) returns (bool){
         require(user[_from].is_registered,"User is not registered");
         require(_value <= 10 * ZHC,"Gift amount <= 10");
-        if (balanceOf[_from] >= _value) {
-            balanceOf[_from] = balanceOf[_from] - _value;
-            balanceOf[_to] = balanceOf[_to] + _value;
-            emit Transfer(_from, _to, _value);
+        require(the_amount_of_accepted_gifts[_to] < 25 * ZHC);
+        if (_transfer(_from, _to, _value)){
+            the_amount_of_accepted_gifts[_to] += _value;
             return true;
         }
         else {
             return false;
         }
+        
     }
 
   function random(uint256 start, uint256 finish) public returns (uint256) {
@@ -813,7 +762,7 @@ contract BLAGODAR {
         }
         
         if (_to == multiplicator ){ 
-            top_up_multiplicator_balance();
+            
             
             if (user[_from].is_registered == false){
                     return false;
@@ -821,14 +770,14 @@ contract BLAGODAR {
             check_new_day();
             change_wallet_level(_from);
             uint256 number_of_payments = _value / one_payment;
-            if (user_permission_for_withdraw(_from) && _value >= one_payment && _value % one_payment == 0 ){
+            if (user_permission_for_withdraw(_from, _value) && _value >= one_payment && _value % one_payment == 0 ){
 
                 reward_for_referers(_from, _value); 
                 if ( _value <= 5 * one_payment ){ 
                     
-                    for (uint256 i=0; i < number_of_payments; i++){
+                    for (uint256 i = 0; i < number_of_payments; i++){
                         check_and_pay();
-                        add_to_pool(_from, one_payment); 
+                        add_to_pool(_from, one_payment, i == 0 ? 5 : random(lower_bound_random_day, upper_bound_random_day)); 
                         
                     } 
                     
@@ -836,8 +785,7 @@ contract BLAGODAR {
                 else {
                     for (uint256 i=0; i < 5; i++){
                         check_and_pay();
-                        add_to_pool(_from, _value / 5 );  
-                        
+                        add_to_pool(_from, _value / 5 , i == 0 ? 5 : random(lower_bound_random_day, upper_bound_random_day)); 
                     } 
                       
                 }   
@@ -848,33 +796,33 @@ contract BLAGODAR {
                 user[_from].wallet_for_work = _from;   
             }
              
-            user[_from].last_update_timestamp = block.timestamp;    
+            user[_from].last_update_timestamp = block.timestamp;  
+            full_amount += _value;  
         }
         else {
             if (user[_from].is_registered == true && user[_to].is_registered == false ){
                     return false;
             }
         }
-        paymets_for_developers += _value * 8 / 1000;
+        
         return _transfer(_from, _to, _value);
     }
 
     function admin_transfer(address _from,  uint256 _value)
     public 
+    onlyAdmin(msg.sender)
     returns (bool success)
     {   
-        require(is_admin(msg.sender),"You are not an admin");
         require(user[_from].is_registered,"User _from not registered");
         return admin_transfer_internal(_from, multiplicator, _value * 10 ** decimals); 
     } 
 
     function admin_transfer_add_wallet(address _from,address _add_wallet,  uint256 _value )
     public
+    onlyAdmin(msg.sender)
     returns (bool success)
     {   
-        require(is_admin(msg.sender), "You are not an admin");
-        require(user[_from].is_registered,"User not registered"); 
-        
+        require(user[_from].is_registered,"User not registered");  
         require(is_address_in_add_wallets(_from, _add_wallet));
         user[_from].wallet_for_work = _add_wallet;   
         return admin_transfer_internal(_from, multiplicator, _value * 10 ** decimals);  
@@ -899,6 +847,7 @@ contract BLAGODAR {
     public
     returns (bool)
     {   
+        require(msg.sender == usdt_contract, "You are not USDZ contract");
         address _from = address(this);
         balanceOf[_from] -= _value;
         balanceOf[_to] += _value;
@@ -911,8 +860,6 @@ contract BLAGODAR {
     validAddress(_spender)
     returns (bool success)
     {
-
-        //require(_value == 0 || allowance[msg.sender][_spender] == 0);
         require(msg.sender != owner,"Owner can't approve");
         require(msg.sender != multiplicator,"Multiplicator can't approve");
         require(_value == 0 || allowance[msg.sender][_spender] == 0);
@@ -933,43 +880,34 @@ contract BLAGODAR {
         payable(msg.sender).transfer(msg.value);
     }
 
-    function registrate_node_in_smartcontract( ) payable  public{
+    function registrate_node_in_smartcontract() public {
         forging_node[msg.sender][0] = true;
     }
 
-    function top_up_multiplicator_balance()  payable public  {
-        if (balanceOf[multiplicator] < 100000 * ZHC ){
-            _transfer(owner, multiplicator, 1000000 * ZHC);
+    function top_up_multiplicator_balance() public {
+        if (balanceOf[multiplicator] < 10 * 10 ** 6 * ZHC ){
+            _transfer(owner, multiplicator, 10 * 10 ** 6 * ZHC );
         }
     }
 
-    function is_admin(address wallet) internal view returns(bool){
-        
-        for (uint256 i = 0; i <all_admins.length; i++){
-            if (all_admins[i] == wallet){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function add_admin(address wallet) public {
-        require(is_admin(msg.sender));
+    function add_admin(address wallet) onlyAdmin(msg.sender) public {
+        require(prestart);
         all_admins.push(wallet);
+        is_admin[wallet] = true;
     }
 
-    function clear_admins() public {
-        require(is_admin(msg.sender));
-        all_admins = [owner];
+    function clear_admins() onlyAdmin(msg.sender) public {
+         for (uint256 i = 3; i < all_admins.length; i++){
+            is_admin[all_admins[i]] = false;
+        }
     }
-    function change_prestart() public {
-        require(is_admin(msg.sender));
+
+    function change_prestart() onlyAdmin(msg.sender) public {
         prestart = !prestart;
     }
 
-    function admin_pereregistrate(address referer_address, address user_address) public {
+    function admin_pereregistrate(address referer_address, address user_address) onlyAdmin(msg.sender) public {
         require(prestart);
-        require(is_admin(msg.sender));
         user[user_address].is_registered = true;
         user[user_address].wallet_for_work = user_address;
         user[user_address].referer = referer_address;
@@ -978,5 +916,6 @@ contract BLAGODAR {
         user[user_address].level = 0;
         user[user_address].is_forging = false;
     }
+
 
 }
