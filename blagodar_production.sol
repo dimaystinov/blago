@@ -215,12 +215,6 @@ contract BLAGODAR {
         return a < b ? a : b;
     }
 
-    //Убрать из продакшена
-    /*function next_day() public{
-        current_day += 1; //1 + (block.timestamp - time_start) / (DAY); //(24 * 3600); заменить
-        last_pool_i = 0;
-    } 
-    */
 
     function get_user_referrals(address user_address, uint256 start_number, uint256 finish_number) public view returns(address [] memory ){ //address user_address,
         require(start_number <= finish_number);
