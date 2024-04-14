@@ -170,9 +170,6 @@ contract BLAGODAR {
 
 
 
-        /*for (i = 0; i < 5; i++){
-            user[user_spisok[i]].tranz_in_day[user_spisok[i]][current_day - 1].push(i);
-        }*/
     
 
 
@@ -517,9 +514,6 @@ contract BLAGODAR {
         }
     }
 
-    /*function admin_change_coefs(uint256 [level_numbers] memory new_coefs) onlyAdmin(msg.sender)  public {
-        coefs = new_coefs;
-    }*/
 
     function admin_registrate_add_wallet(address user_address, address add_wallet) onlyAdmin(msg.sender) public {
         require(user[user_address].is_registered == true, "User is not registered");
