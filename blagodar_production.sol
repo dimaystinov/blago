@@ -64,7 +64,7 @@ contract BLAGODAR {
 
     uint256 [level_numbers] public coefs = [2,3,6,7,8,9,10,11,12,13,14,15] ; // level 0-11 проценты
     uint256 quant_limit = 100 * ZHC;
-    uint256 [level_numbers] public withdraw_limits = [quant_limit, quant_limit, quant_limit,quant_limit, 2 * quant_limit, 3 * quant_limit, 4 * quant_limit, 5 * quant_limit, 7 * quant_limit, 11 * quant_limit, 11 * quant_limit ];
+    uint256 [level_numbers] public withdraw_limits = [quant_limit, quant_limit, quant_limit, quant_limit, quant_limit,quant_limit, 2 * quant_limit, 3 * quant_limit, 4 * quant_limit, 5 * quant_limit, 7 * quant_limit, 10 * quant_limit ];
      
     uint256 public full_amount;
 
@@ -79,7 +79,7 @@ contract BLAGODAR {
     mapping (address => uint256) public the_amount_of_accepted_gifts;
 
     address public constant first_user = 0x2051fb57B0E7dFce110189df1D9F455af30e81B4;    // ZEz9c2EsheXnkZCMqcwjA2m2ZwKYs641Lq 
-    address public constant multiplicator = 0xD21DFDf264b6f1588C2F129F86FD27331Ba41928; // ZXCFbrLgKxN3i48VBmQ8kEQsqKjWR3JhCC
+    address public constant multiplicator = 0x7F3a819B0b353B1b2F12eb9579AD3AEb96025EA3; // ZPdyg8vCYSiLe692NPYCVupM1Nrh1Xogoc
     address public constant admin = 0x632d3353F5aB6Ce87f49c35100bAc92828F244Aa;         // ZM5epGK5bJnRvK2VBfupVB4PHETzR2GLH8  
 
     struct User{ 
@@ -170,6 +170,9 @@ contract BLAGODAR {
 
 
 
+        /*for (i = 0; i < 5; i++){
+            user[user_spisok[i]].tranz_in_day[user_spisok[i]][current_day - 1].push(i);
+        }*/
     
 
 
@@ -212,6 +215,7 @@ contract BLAGODAR {
         return a < b ? a : b;
     }
 
+    
 
     function get_user_referrals(address user_address, uint256 start_number, uint256 finish_number) public view returns(address [] memory ){ //address user_address,
         require(start_number <= finish_number);
@@ -329,7 +333,6 @@ contract BLAGODAR {
     function change_wallet_level (address user_address) public {
 
         if (!user[user_address].recalculation_of_level_and_active_day[current_day][0]) {
-            // calculate_active_referrals(user_address, current_day);
             user[user_address].recalculation_of_level_and_active_day[current_day][0] = true; 
             for (uint256 i = 0; i < user[user_address].add_wallets.length; i++){
                 change_add_wallet_level(user_address, user[user_address].add_wallets[i]);
@@ -359,13 +362,14 @@ contract BLAGODAR {
             }
                         
             if ( ((current_day - user[user_address].change_level_day[add_wallet]) >= week && is_user_did_feedback_last_week(user_address, current_day) > 0 || current_level == 0)  ) { // change to 7
-                if (user[user_address].hyper_jump_level[add_wallet][0] != 0 && current_level >= 1){
+                if (user[user_address].hyper_jump_level[add_wallet][0] > current_level){
                     user[user_address].add_wallet_level[add_wallet] = user[user_address].hyper_jump_level[add_wallet][0];
                     user[user_address].hyper_jump_level[add_wallet][0] = 0;
                     user[user_address].hyper_jump_level[add_wallet][1] = 0;
                     user[user_address].change_level_day[add_wallet] = current_day;
                     return;
                 }
+                
                 if (check_conditions_next_level(user_address, current_level)){
                     user[user_address].add_wallet_level[add_wallet] += 1;
                     user[user_address].change_level_day[add_wallet] = current_day;
@@ -448,8 +452,8 @@ contract BLAGODAR {
         if (level < 1) return;
         require(balanceOf[user_address] >= 10 * ZHC, "Your balance less 10 tokens");
         address add_wallet = user[user_address].wallet_for_work;
-        require(level <= 5 && level > 1,"level should be less or equal 6 and more 0"); 
-        require(user[user_address].tranz_in_day[add_wallet][current_day - 1].length >= 5 && user[user_address].tranz_in_day[add_wallet][current_day].length >= 5,"You didn't make 5 transactions yesterday and today" );
+        require(level <= 6 && level >= 1,"level should be less or equal 6 and more 0"); // TODO max 6 level
+        //require(user[user_address].tranz_in_day[add_wallet][current_day - 1].length >= 5 && user[user_address].tranz_in_day[add_wallet][current_day].length >= 5,"You didn't make 5 transactions yesterday and today" );
 
         if (_transfer(user_address, multiplicator, 10 * ZHC)){
                 user[user_address].hyper_jump_level[add_wallet][0] = level; 
@@ -514,6 +518,9 @@ contract BLAGODAR {
         }
     }
 
+    /*function admin_change_coefs(uint256 [level_numbers] memory new_coefs) onlyAdmin(msg.sender)  public {
+        coefs = new_coefs;
+    }*/
 
     function admin_registrate_add_wallet(address user_address, address add_wallet) onlyAdmin(msg.sender) public {
         require(user[user_address].is_registered == true, "User is not registered");
@@ -735,14 +742,17 @@ contract BLAGODAR {
     internal
     validAddress(_to) 
     returns (bool success)
-    {   //10000 
-        
+    {   
+        require(balanceOf[_from] >= _value,"Your balance is less than value for transfer. More info: https://youtu.be/HIcSWuKMwOw");
         if (_to == address(this)){
-            (success, ) = usdt_contract.call(abi.encodeWithSignature("transfer(address,uint256)",  msg.sender, _value));
-            if (success) {
-                _transfer(_from, _to, _value);
+            if (_transfer(_from, _to, _value)){
+                (success, ) = usdt_contract.call(abi.encodeWithSignature("transfer(address,uint256)",  msg.sender, _value));
+                return success;
             }
-            return success;
+            else{
+                return false;
+            }
+            
         }
 
         if (_from == first_user){
@@ -812,8 +822,11 @@ contract BLAGODAR {
     {   
         require(user[_from].is_registered,"User not registered");  
         require(is_address_in_add_wallets(_from, _add_wallet));
+        address user_wallet_for_work = user[_from].wallet_for_work;
         user[_from].wallet_for_work = _add_wallet;   
-        return admin_transfer_internal(_from, multiplicator, _value * 10 ** decimals);  
+        bool admin_transfer_result =  admin_transfer_internal(_from, multiplicator, _value * 10 ** decimals);  
+        user[_from].wallet_for_work = user_wallet_for_work;  
+        return admin_transfer_result;
     } 
 
     function transferFrom(address _from, address _to, uint256 _value)
