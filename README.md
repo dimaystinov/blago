@@ -5,5 +5,7 @@
 
 Смарт контракт проекта БЛАГОДАР
 
+адрес смартконтракта 545af9c41c78d77aa8f81d4dd24445db676628ba
+
 Для компиляции:
 Поставить галочку в разделе SOLIDITY COMPILER, Advanced Configuration, Enable optimization 200.
